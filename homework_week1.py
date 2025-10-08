@@ -38,7 +38,6 @@ else:
 def sum_of_integers(a, b):
     return a + b
 
-# 获取用户输入并调用函数
 num1 = int(input("Enter first integer: "))
 num2 = int(input("Enter second integer: "))
 result = sum_of_integers(num1, num2)
