@@ -1,0 +1,84 @@
+import argparse
+from pathlib import Path
+import sys
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+WEEKDAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+
+def find_col(df, name):
+    target = name.lower()
+    for c in df.columns:
+        if c.lower() == target:
+            return c
+    return None
+
+def coerce_datetime(s):
+    return pd.to_datetime(s, errors="coerce", infer_datetime_format=True, utc=False)
+
+def main():
+    ap = argparse.ArgumentParser(description="Weekday-only pedestrian line plot (Mon–Fri).")
+    ap.add_argument("data_path", help="CSV/Parquet/Feather/Excel with Brooklyn Bridge counts")
+    ap.add_argument("--outdir", default=".", help="Directory to save outputs")
+    ap.add_argument("--location", default=None, help="Optional: filter to a specific location (e.g., 'Brooklyn Bridge')")
+    args = ap.parse_args()
+
+    in_path = Path(args.data_path)
+    outdir = Path(args.outdir); outdir.mkdir(parents=True, exist_ok=True)
+
+    # Load flexibly by extension
+    ext = in_path.suffix.lower()
+    if ext in [".csv"]:
+        df = pd.read_csv(in_path)
+    elif ext in [".parquet"]:
+        df = pd.read_parquet(in_path)
+    elif ext in [".feather"]:
+        import pyarrow.feather as feather
+        df = feather.read_feather(in_path)
+    elif ext in [".xlsx", ".xls"]:
+        df = pd.read_excel(in_path)
+    else:
+        print(f"Unsupported file extension: {ext}", file=sys.stderr); sys.exit(2)
+
+    # Resolve columns
+    col_time = find_col(df, "Hour_beginning")
+    col_total = find_col(df, "Pedestrians")
+    col_loc = find_col(df, "Location")
+    if col_time is None or col_total is None:
+        print("Required columns not found (Hour_beginning, Pedestrians).", file=sys.stderr)
+        sys.exit(2)
+
+    # Optional location filter
+    if args.location and col_loc:
+        df = df[df[col_loc].astype(str).str.strip().str.lower() == args.location.strip().lower()]
+
+    # Parse time and derive weekday
+    ts = coerce_datetime(df[col_time])
+    df = df.assign(__ts=ts)
+    df = df[df["__ts"].notna()].copy()
+    df["Weekday"] = df["__ts"].dt.day_name()
+
+    # Keep Mon-Fri
+    df = df[df["Weekday"].isin(WEEKDAY_ORDER)].copy()
+
+    # Aggregate: average by weekday (keep order)
+    agg = (df.groupby("Weekday")[col_total]
+             .agg(total="sum", mean="mean", median="median", n="count")
+             .reindex(WEEKDAY_ORDER))
+    agg.to_csv(outdir / "weekday_table.csv", index=True)
+
+    # Plot line of mean pedestrians by weekday
+    plt.figure(figsize=(8,5))
+    plt.plot(agg.index, agg["mean"], marker="o")
+    plt.title("Average Pedestrian Count by Weekday (Mon–Fri)")
+    plt.xlabel("Weekday")
+    plt.ylabel("Average Pedestrians")
+    plt.tight_layout()
+    plt.savefig(outdir / "weekday_line.png", dpi=150)
+    plt.close()
+
+    print(f"Saved: {outdir/'weekday_line.png'}, {outdir/'weekday_table.csv'}")
+
+if __name__ == "__main__":
+    main()
