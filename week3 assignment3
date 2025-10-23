@@ -1,0 +1,97 @@
+import argparse
+from pathlib import Path
+import sys
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+def find_col(df, name):
+    target = name.lower()
+    for c in df.columns:
+        if c.lower() == target:
+            return c
+    return None
+
+def coerce_datetime(s):
+    return pd.to_datetime(s, errors="coerce", infer_datetime_format=True, utc=False)
+
+def categorize_hour(h: int) -> str:
+    if 0 <= h <= 5:
+        return "Night"
+    if 6 <= h <= 11:
+        return "Morning"
+    if 12 <= h <= 17:
+        return "Afternoon"
+    return "Evening"  # 18–23
+
+def main():
+    ap = argparse.ArgumentParser(description="Time-of-day categorization and analysis for pedestrian activity.")
+    ap.add_argument("data_path", help="CSV/Parquet/Feather/Excel with counts")
+    ap.add_argument("--outdir", default=".", help="Directory to save outputs")
+    ap.add_argument("--location", default=None, help="Optional: filter to a specific site name")
+    args = ap.parse_args()
+
+    in_path = Path(args.data_path)
+    outdir = Path(args.outdir); outdir.mkdir(parents=True, exist_ok=True)
+
+    ext = in_path.suffix.lower()
+    if ext == ".csv":
+        df = pd.read_csv(in_path)
+    elif ext == ".parquet":
+        df = pd.read_parquet(in_path)
+    elif ext == ".feather":
+        import pyarrow.feather as feather
+        df = feather.read_feather(in_path)
+    elif ext in [".xlsx", ".xls"]:
+        df = pd.read_excel(in_path)
+    else:
+        print(f"Unsupported file extension: {ext}", file=sys.stderr); sys.exit(2)
+
+    col_time = find_col(df, "Hour_beginning")
+    col_total = find_col(df, "Pedestrians")
+    col_loc = find_col(df, "Location")
+    if col_time is None or col_total is None:
+        print("Required columns not found (Hour_beginning, Pedestrians).", file=sys.stderr)
+        sys.exit(2)
+
+    # Optional location filter
+    if args.location and col_loc:
+        df = df[df[col_loc].astype(str).str.strip().str.lower() == args.location.strip().lower()]
+
+    ts = coerce_datetime(df[col_time])
+    df = df.assign(__ts=ts)
+    df = df[df["__ts"].notna()].copy()
+    df["Hour"] = df["__ts"].dt.hour
+    df["TimeOfDay"] = df["Hour"].apply(categorize_hour)
+
+    # Save summary table
+    agg = (df.groupby("TimeOfDay")[col_total]
+             .agg(total="sum", mean="mean", median="median", n="count")
+             .reindex(["Morning","Afternoon","Evening","Night"]))
+    agg.to_csv(outdir / "time_of_day_stats.csv", index=True)
+
+    # Plot 1: hourly profile (0–23)
+    hourly = df.groupby("Hour")[col_total].mean().reindex(range(24), fill_value=np.nan)
+    plt.figure(figsize=(8,5))
+    plt.plot(hourly.index, hourly.values, marker="o")
+    plt.title("Mean Pedestrians by Hour (0–23)")
+    plt.xlabel("Hour of Day")
+    plt.ylabel("Mean Pedestrians")
+    plt.tight_layout()
+    plt.savefig(outdir / "hourly_profile.png", dpi=150)
+    plt.close()
+
+    # Plot 2: bar chart by TimeOfDay
+    plt.figure(figsize=(6,4))
+    plt.bar(agg.index, agg["mean"])
+    plt.title("Mean Pedestrians by Time of Day")
+    plt.xlabel("Time of Day")
+    plt.ylabel("Mean Pedestrians")
+    plt.tight_layout()
+    plt.savefig(outdir / "tod_bar.png", dpi=150)
+    plt.close()
+
+    print(f"Saved: {outdir/'time_of_day_stats.csv'}, {outdir/'hourly_profile.png'}, {outdir/'tod_bar.png'}")
+
+if __name__ == "__main__":
+    main()
