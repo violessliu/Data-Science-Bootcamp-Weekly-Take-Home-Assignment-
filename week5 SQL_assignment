@@ -1,0 +1,183 @@
+#1.SQL
+SELECT
+actor_id,
+director_id
+FROM ActorDirector
+GROUP BY actor_id, director_id
+HAVING COUNT(*) >= 3;
+
+#1.pandas
+import pandas as pd
+
+def actors_and_directors(actor_director: pd.DataFrame) -> pd.DataFrame:
+counts = (
+actor_director
+.groupby(['actor_id', 'director_id'])
+.size()
+.reset_index(name='cnt')
+)
+res = counts.loc[counts['cnt'] >= 3, ['actor_id', 'director_id']]
+return res
+
+#2.SQL  -- Fix Names in a Table
+SELECT
+user_id,
+CONCAT(UPPER(LEFT(name, 1)), LOWER(SUBSTRING(name, 2))) AS name
+FROM Users
+ORDER BY user_id;
+
+#2.pandas
+import pandas as pd
+
+def fix_names(users: pd.DataFrame) -> pd.DataFrame:
+out = users.copy()
+out['name'] = out['name'].str.capitalize()
+return out.sort_values('user_id')[['user_id', 'name']]
+
+#3.SQL  -- Combine Two Tables
+SELECT
+p.firstName,
+p.lastName,
+a.city,
+a.state
+FROM Person p
+LEFT JOIN Address a
+ON p.personId = a.personId;
+
+#3.pandas
+import pandas as pd
+
+def combine_two_tables(person: pd.DataFrame, address: pd.DataFrame) -> pd.DataFrame:
+m = person.merge(address, on='personId', how='left')
+return m[['firstName', 'lastName', 'city', 'state']]
+
+#4.SQL  -- Second Highest Salary
+SELECT (
+SELECT DISTINCT salary
+FROM Employee
+ORDER BY salary DESC
+LIMIT 1 OFFSET 1
+) AS SecondHighestSalary;
+
+#4.pandas
+import pandas as pd
+
+def second_highest_salary(employee: pd.DataFrame) -> pd.DataFrame:
+uniq = employee['salary'].dropna().drop_duplicates().sort_values(ascending=False)
+val = uniq.iloc[1] if len(uniq) >= 2 else None
+return pd.DataFrame({'SecondHighestSalary': [val]})
+
+#5.SQL  -- List the Products Ordered in a Period (2020-02)
+SELECT
+p.product_name,
+SUM(o.unit) AS unit
+FROM Orders o
+JOIN Products p
+ON p.product_id = o.product_id
+WHERE o.order_date >= '2020-02-01'
+AND o.order_date <  '2020-03-01'
+GROUP BY p.product_name
+HAVING SUM(o.unit) >= 100;
+
+#5.pandas
+import pandas as pd
+
+def list_products_ordered_in_period(orders: pd.DataFrame, products: pd.DataFrame) -> pd.DataFrame:
+o = orders[(orders['order_date'] >= '2020-02-01') & (orders['order_date'] < '2020-03-01')]
+g = (o.merge(products, on='product_id')
+.groupby('product_name', as_index=False)['unit'].sum())
+return g[g['unit'] >= 100][['product_name', 'unit']]
+
+#6.SQL  -- Replace Employee ID With the Unique Identifier
+SELECT
+eu.unique_id,
+e.name
+FROM Employees e
+LEFT JOIN EmployeeUNI eu
+ON eu.id = e.id;
+
+#6.pandas
+import pandas as pd
+
+def replace_employee_id(employees: pd.DataFrame, employee_uni: pd.DataFrame) -> pd.DataFrame:
+m = employees.merge(employee_uni, on='id', how='left')
+return m[['unique_id', 'name']]
+
+#7.SQL  -- Game Play Analysis IV
+WITH firsts AS (
+SELECT player_id, MIN(event_date) AS first_date
+FROM Activity
+GROUP BY player_id
+),
+day1_return AS (
+SELECT f.player_id
+FROM firsts f
+JOIN Activity a
+ON a.player_id = f.player_id
+AND a.event_date = DATE_ADD(f.first_date, INTERVAL 1 DAY)
+GROUP BY f.player_id
+)
+SELECT
+ROUND(COUNT(*) / (SELECT COUNT(*) FROM firsts), 2) AS fraction
+FROM day1_return;
+
+#7.pandas
+import pandas as pd
+
+def game_play_analysis_iv(activity: pd.DataFrame) -> pd.DataFrame:
+firsts = (activity.groupby('player_id', as_index=False)['event_date']
+.min().rename(columns={'event_date': 'first_date'}))
+a = activity.merge(firsts, on='player_id')
+a['event_date'] = pd.to_datetime(a['event_date'])
+a['first_date'] = pd.to_datetime(a['first_date'])
+mask = a['event_date'] == (a['first_date'] + pd.Timedelta(days=1))
+returned = a.loc[mask, 'player_id'].drop_duplicates()
+frac = round(len(returned) / firsts['player_id'].nunique(), 2) if len(firsts) else 0.00
+return pd.DataFrame({'fraction': [frac]})
+
+#8.SQL  -- Project Employees I
+SELECT
+project_id,
+COUNT(employee_id) AS employee_count
+FROM Project
+GROUP BY project_id;
+
+#8.pandas
+import pandas as pd
+
+def project_employees_i(project: pd.DataFrame) -> pd.DataFrame:
+g = project.groupby('project_id', as_index=False)['employee_id'].count()
+g = g.rename(columns={'employee_id': 'employee_count'})
+return g
+
+#9.SQL  -- Department Top Three Salaries (Dense Rank)
+WITH ranked AS (
+SELECT
+e.*,
+DENSE_RANK() OVER (PARTITION BY e.departmentId ORDER BY e.salary DESC) AS rnk
+FROM Employee e
+)
+SELECT
+d.name AS Department,
+r.name AS Employee,
+r.salary AS Salary
+FROM ranked r
+JOIN Department d
+ON d.id = r.departmentId
+WHERE r.rnk <= 3
+ORDER BY d.name, r.salary DESC, r.name;
+
+#9.pandas
+import pandas as pd
+
+def department_top_three_salaries(employee: pd.DataFrame, department: pd.DataFrame) -> pd.DataFrame:
+m = employee.merge(department, left_on='departmentId', right_on='id', how='left')
+m['rnk'] = m.groupby('departmentId')['salary'].rank(method='dense', ascending=False)
+out = m[m['rnk'] <= 3].copy()
+out = out.rename(columns={'name_y': 'Department', 'name_x': 'Employee', 'salary': 'Salary'})
+return out[['Department', 'Employee', 'Salary']].sort_values(
+['Department', 'Salary', 'Employee'],
+ascending=[True, False, True]
+)
+
+
