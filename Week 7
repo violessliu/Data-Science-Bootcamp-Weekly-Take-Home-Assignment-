@@ -1,0 +1,134 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import math
+
+# Dice setup
+dice_probs = {'A': 0.1, 'B': 0.3, 'C': 0.6}
+dice_names = list(dice_probs.keys())
+
+
+prior = np.ones(len(dice_names)) / len(dice_names)
+
+n_rolls = 10
+
+def binomial_prob(n, k, p):
+    return math.comb(n, k) * (p ** k) * ((1 - p) ** (n - k))
+
+
+def simulate_round():
+   
+    true_die = np.random.choice(dice_names)
+    p = dice_probs[true_die]
+    k = np.random.binomial(n_rolls, p)
+    return true_die, k
+def posterior_given_k(k):
+    likelihoods = np.array([
+        binomial_prob(n_rolls, k, dice_probs[d]) for d in dice_names
+    ])
+    unnormalized = likelihoods * prior
+    posterior = unnormalized / unnormalized.sum()
+    return posterior 
+ks = np.arange(0, n_rolls + 1)
+
+plt.figure(figsize=(7, 5))
+for d in dice_names:
+    probs = [binomial_prob(n_rolls, k, dice_probs[d]) for k in ks]
+    plt.plot(ks, probs, marker='o', label=f'Die {d} (p={dice_probs[d]:.1f})')
+plt.xlabel('Number of sixes k in 10 rolls')
+plt.ylabel('Likelihood P(k | Die)')
+plt.title('Likelihood of Observing k Sixes for Each Die')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+num_trials = 100
+np.random.seed(0) 
+
+correct = 0
+for _ in range(num_trials):
+    true_die, k = simulate_round()
+    post = posterior_given_k(k)
+    predicted_die = dice_names[np.argmax(post)]
+    correct += (predicted_die == true_die)
+
+print(f"Accuracy over {num_trials} rounds: {correct/num_trials:.2f}")
+
+posterior_matrix = np.array([posterior_given_k(k) for k in ks])
+
+plt.figure(figsize=(7, 5))
+plt.imshow(posterior_matrix.T, cmap='viridis', aspect='auto')
+plt.xticks(ks)
+plt.yticks(range(len(dice_names)), dice_names)
+plt.xlabel('Observed number of sixes (k)')
+plt.ylabel('Posterior P(Die | k)')
+plt.colorbar(label='Probability')
+plt.title('Posterior Distribution over Dice for Different Observations')
+plt.show()
+
+#problem B
+import numpy as np
+x = np.array([-2, -1, 0, 1, 2], dtype=float)
+y = np.array([7, 4, 3, 4, 7], dtype=float)
+X = np.column_stack((np.ones_like(x), x))
+theta = np.linalg.inv(X.T @ X) @ (X.T @ y)
+y_pred = X @ theta
+mse_linear = np.mean((y_pred - y) ** 2)
+
+print("theta (theta_0, theta_1) =", theta)
+print("Predicted y:", y_pred)
+print("MSE =", mse_linear)
+
+#problenC
+import numpy as np
+import matplotlib.pyplot as plt
+
+def f(w):
+    return 5 * (w - 11) ** 4
+
+
+def f_grad(w):
+    return 20 * (w - 11) ** 3
+
+def grad_descent_vals(w0, alpha, steps):
+  
+    w_vals = [w0]
+    f_vals = [f(w0)]
+    
+    w = w0
+    for _ in range(steps):
+        grad = f_grad(w)
+        w = w - alpha * grad   
+        w_vals.append(w)
+        f_vals.append(f(w))
+    
+    return w_vals, f_vals
+
+w0 = 13
+alpha1 = 1/400       
+alpha2 = 1/4_000_000  
+steps = 200
+w_vals1, f_vals1 = grad_descent_vals(w0, alpha1, steps)
+w_vals2, f_vals2 = grad_descent_vals(w0, alpha2, steps)
+
+print()
+for i in range(5):
+    print(f"Step {i}: w = {w_vals1[i]:.6f}, f(w) = {f_vals1[i]:.6f}")
+print(f"最后一步: w = {w_vals1[-1]:.6f}, f(w) = {f_vals1[-1]:.6f}\n")
+
+print("")
+for i in range(5):
+    print(f"Step {i}: w = {w_vals2[i]:.6f}, f(w) = {f_vals2[i]:.6f}")
+print(f"last step: w = {w_vals2[-1]:.6f}, f(w) = {f_vals2[-1]:.6f}")
+
+
+iters = np.arange(steps + 1)
+
+plt.figure(figsize=(7,5))
+plt.plot(iters, f_vals1, label="alpha = 1/400")
+plt.plot(iters, f_vals2, label="alpha = 1/4,000,000")
+plt.xlabel("Iteration")
+plt.ylabel("f(w)")
+plt.title("Gradient Descent on f(w) = 5(w-11)^4")
+plt.legend()
+plt.grid(True)
+plt.show()
