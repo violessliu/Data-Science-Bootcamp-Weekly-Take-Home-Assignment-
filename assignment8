@@ -1,0 +1,68 @@
+def sigmoid(x):
+    x = np.asarray(x, dtype=float)
+    return 1 / (1 + np.exp(-x))
+
+x_values = np.linspace(-10, 10, 100)
+y_values = sigmoid(x_values)
+
+plt.figure(figsize=(10, 6))
+plt.plot(x_values, y_values)
+plt.title('Sigmoid Function')
+plt.xlabel('x')
+plt.ylabel('sigmoid(x)')
+plt.grid(True, alpha=0.3)
+plt.show()
+
+test_values = [-5, -2, 0, 2, 5]
+print("Sigmoid function test:")
+for val in test_values:
+    print(f"sigmoid({val}) = {sigmoid(val):.6f}")
+
+z = bias + coef1 * feature1 + coef2 * feature2
+probability = sigmoid(z)
+
+prediction = 1 if probability >= 0.5 else 0
+print(f"Prediction (threshold=0.5): {prediction}")
+
+def predict_probability(features, coefficients, bias, threshold=0.5):
+    features = np.asarray(features, dtype=float)
+    coefficients = np.asarray(coefficients, dtype=float)
+    z = bias + float(np.dot(features, coefficients))
+    prob = float(sigmoid(z))
+    pred = 1 if prob >= threshold else 0
+    return prob, pred
+
+prob, pred = predict_probability([1.5, -0.8], [0.8, -0.3], 0.5)
+print(f"\nTest - Probability: {prob:.4f}, Prediction: {pred}")
+
+z = bias + coef1 * feature1 + coef2 * feature2
+probability = sigmoid(z)
+
+prediction = 1 if probability >= 0.5 else 0
+print(f"Prediction (threshold=0.5): {prediction}")
+
+def predict_probability(features, coefficients, bias, threshold=0.5):
+    features = np.asarray(features, dtype=float)
+    coefficients = np.asarray(coefficients, dtype=float)
+    z = bias + float(np.dot(features, coefficients))
+    prob = float(sigmoid(z))
+    pred = 1 if prob >= threshold else 0
+    return prob, pred
+
+prob, pred = predict_probability([1.5, -0.8], [0.8, -0.3], 0.5)
+print(f"\nTest - Probability: {prob:.4f}, Prediction: {pred}")
+
+def calculate_confusion_matrix(y_true, y_pred):
+    TP = TN = FP = FN = 0
+    for t, p in zip(y_true, y_pred):
+        if t == 1 and p == 1:
+            TP += 1
+        elif t == 0 and p == 0:
+            TN += 1
+        elif t == 0 and p == 1:
+            FP += 1
+        elif t == 1 and p == 0:
+            FN += 1
+    return TP, TN, FP, FN
+
+TP, TN, FP, FN = calculate_confusion_matrix(y_true, y_pred)
